@@ -120,6 +120,8 @@ def refresh_chat(state: Session):
 def chat(message, history, state: Session, timer: gr.Timer):
     if state is None:
        state = init_session()
+       with open('knowledge-base/intro.md', 'r', encoding='utf-8') as file:
+           state.history.append({'role': 'assistant', 'content': file.read()})
 
     response = state.session_id
     history = state.history
