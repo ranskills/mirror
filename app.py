@@ -1,35 +1,14 @@
-import uuid
 import time
-from typing import TypeAlias
-from dataclasses import dataclass, field
 
 import gradio as gr
 from dotenv import load_dotenv
 from pypdf import PdfReader
 
+from common import Session, SessionID
 from secret import get_secret
 from telegram import create_client
 from llm import create_agent_with_context
 
-SessionID: TypeAlias = str
-
-@dataclass
-class Session:
-    session_id: SessionID
-    name: str
-    is_live_chat: bool
-    history: list[dict[str, str]]
-    message_ids: set[int] = field(default_factory=set)
-
-    @classmethod
-    def new_session(cls) -> 'Session':
-        session_id = str(uuid.uuid4())[:5]
-        return cls(
-            session_id=session_id,
-            name='',
-            is_live_chat=False,
-            history=[],
-        )
 
 sessions: dict[SessionID, Session] = {}
 
@@ -48,9 +27,9 @@ context = 'LinkedIn Profile: '
 for page in reader.pages:
     context += page.extract_text() + '\n\n'
 
-agent = create_agent_with_context(context)
 
 def ask_llm(message, history, state: Session):
+    agent = create_agent_with_context(context, state)
     # print('Current State', state)
     messages = history + [{'role': 'user', 'content': message}]
     result = agent.invoke({'messages': messages})

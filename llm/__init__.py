@@ -3,9 +3,12 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from langchain.agents import create_agent
+from langchain.tools import tool
 from langchain_openai import ChatOpenAI
 
+from common import Session
 from secret import get_secret
+from .tools import log_unanswered_question
 
 load_dotenv()
 
@@ -26,7 +29,7 @@ model = ChatOpenAI(
 )
 
 
-def _get_system_prompt(context: str) -> str:
+def _get_system_prompt(context: str, session: Session) -> str:
     return f'''
     You are a helpful assistant representing Ransford Okpoti as a digital twin.
     You are to sell him to the best of your abilities to potential clients and even
@@ -36,6 +39,13 @@ def _get_system_prompt(context: str) -> str:
     Be kind in your interactions and not provoked by any question from the user.
     Do not make up responses, strictly restrict yourself to the provided context.
 
+    You have access to these tools
+    - log_unanswered_question: use to log unanswered questions
+
+    Session Details:
+    - Session ID: {session.session_id}
+    - User Name: {session.name}
+
     Current Time: {datetime.now(timezone.utc).isoformat}
 
     Context:
@@ -43,16 +53,17 @@ def _get_system_prompt(context: str) -> str:
     '''
 
 
-def create_agent_with_context(context: str):
+
+
+def create_agent_with_context(context: str, session: Session):
 
     agent = create_agent(
         model=model,
-        system_prompt=_get_system_prompt(context),
+        system_prompt=_get_system_prompt(context, session),
         tools=[
-            # live_chat_request_notifier,
-            # sent_telegram_message,
-            # capture_unanswered_question,
+            log_unanswered_question,
         ],
+        debug=True,
     )
 
     return agent
