@@ -85,20 +85,24 @@ def poll_telegram_replies():
         if is_broadcast:
             print(f'Broadcasting to all {len(sessions)} sessions: {message}')
             for session_id in sessions:
-                sessions[session_id].history.append(response)
+                session = sessions[session_id]
+
+                if session.is_live_chat:
+                    session.history.append(response)
         else:
             session = find_owning_session(reply_to_message_id)
             if session:
                 print(f'Adding message to session {session.session_id}')
-                session.history.append(response)
+                if session.is_live_chat:
+                    session.history.append(response)
 
 
 def refresh_chat(state: Session):
     global sessions
 
-    if state is None:
-        return [], state
-        # return gr.Chatbot(), state
+    if state is None or not state.is_live_chat:
+        # return [], state
+        return gr.Chatbot(type='messages'), state
 
     session_id = state.session_id
     print(f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram_client.last_update_id}')
@@ -113,41 +117,47 @@ def refresh_chat(state: Session):
     return sessions[session_id].history, state
 
 
-def chat(message, history, state: Session):
+def chat(message, history, state: Session, timer: gr.Timer):
     if state is None:
        state = init_session()
 
     response = state.session_id
     history = state.history
 
-    is_requesting_live_chat = message.lower() in ['mirror', 'mirror mirror']
-    should_exit_live_chat = message.lower() in ['exit', 'goodbye', 'bye', 'done', ]
+    live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
+    live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', ]
 
-    if is_requesting_live_chat:
+    if live_chat_request_received:
         state.is_live_chat = True
         response = '''
         Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
-        To exit live chat mode, type "exit"
+        To exit live chat mode, type **exit**"
         '''
         history.append({'role': 'assistant', 'content': response})
-        return '', history, state
+        return '', history, state, gr.Timer(active=True)
 
 
     history.append({'role': 'user', 'content': message})
 
-    if state.is_live_chat:
+    if state.is_live_chat and not live_chat_exit_received:
         result = telegram_client.send_message(message)
         print(f'Sent result: {type(result)} {result}')
         message_id = result.get('message_id')
         print(f'Adding new message id: {message_id}')
         state.message_ids.add(message_id)
 
-        return '', history, state
+        return '', history, state, gr.Timer(active=True)
 
+    exit_live_chat = state.is_live_chat and live_chat_exit_received
+    if exit_live_chat:
+        state.is_live_chat = False
+        response = 'Live chat **deactivated**. You can continue chatting with the mirror bot.'
+        history.append({'role': 'assistant', 'content': response})
+        return '', history, state, gr.Timer(active=False)
 
     history.append({'role': 'assistant', 'content': response})
 
-    return '', history, state
+    return '', history, state, gr.Timer(active=False)
 
 
 title = '🪞 Mirror'
@@ -168,9 +178,10 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         autofocus=True, 
         container=False,
     )
+    timer = gr.Timer(1, active=False)
 
-    msg.submit(chat, inputs=[msg, chatbot, state], outputs=[msg, chatbot, state])
-    gr.Timer(1).tick(refresh_chat, inputs=[state], outputs=[chatbot, state])
+    msg.submit(chat, inputs=[msg, chatbot, state, timer], outputs=[msg, chatbot, state, timer])
+    timer.tick(refresh_chat, inputs=[state], outputs=[chatbot, state])
 
 
 if __name__ == '__main__':
