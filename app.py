@@ -40,9 +40,10 @@ TELEGRAM_CHAT_ID = get_secret('TELEGRAM_CHAT_ID')
 
 telegram_client = create_client(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 
-
 def ask_llm(message, history, state):
     pass
+
+message_to_ask_for_name = {'role': 'assistant', 'content': 'Before you enter my MirrorVerse, please tell me your name?'}
 
 
 def init_session() -> Session:
@@ -120,11 +121,23 @@ def refresh_chat(state: Session):
 def chat(message, history, state: Session, timer: gr.Timer):
     if state is None:
        state = init_session()
-       with open('knowledge-base/intro.md', 'r', encoding='utf-8') as file:
-           state.history.append({'role': 'assistant', 'content': file.read()})
 
     response = state.session_id
     history = state.history
+
+    if not state.name:
+        state.name = message.strip()
+        print(f'User says he/she is: {message}')
+        # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
+        history.append(message_to_ask_for_name)
+        history.append({'role': 'user', 'content': message})
+
+        history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**'})
+        with open('knowledge-base/intro.md', 'r', encoding='utf-8') as file:
+            history.append({'role': 'assistant', 'content': file.read()})
+
+        return '', history, state, gr.Timer(active=False)
+
 
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
     live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', ]
@@ -173,8 +186,9 @@ with gr.Blocks(title=title, fill_height=True) as ui:
     ''')
 
     chatbot = gr.Chatbot(
+        value=[message_to_ask_for_name],
         type='messages',
-        height='80vh'
+        height='80vh',
     )
     msg = gr.Textbox(
         autofocus=True, 
