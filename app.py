@@ -6,7 +6,7 @@ from pypdf import PdfReader
 
 from common import Session, SessionID
 from secret import get_secret
-from telegram import create_client
+from client import create_telegram_client
 from llm import create_agent_with_context
 
 
@@ -18,7 +18,7 @@ TELEGRAM_TOKEN = get_secret('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = get_secret('TELEGRAM_CHAT_ID')
 
 
-telegram_client = create_client(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+telegram_client = create_telegram_client(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 
 KNOWLEDGE_BASE_DIR = 'knowledge-base'
 reader = PdfReader(f'{KNOWLEDGE_BASE_DIR}/Profile.pdf')
