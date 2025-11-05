@@ -1,7 +1,8 @@
 import uuid
-from time import sleep
-from typing import Any, TypeAlias, TypedDict
-from dataclasses import dataclass
+import time
+from typing import TypeAlias
+from dataclasses import dataclass, field
+
 import gradio as gr
 from dotenv import load_dotenv
 
@@ -17,7 +18,7 @@ class Session:
     name: str
     is_live_chat: bool
     history: list[dict[str, str]]
-    telegram_last_update_id: int | None = None # I'll have to move this to global
+    message_ids: set[int] = field(default_factory=set)
 
     @classmethod
     def new_session(cls) -> 'Session':
@@ -84,53 +85,67 @@ def init_session() -> Session:
 
    sessions[session.session_id] = session
    return session
-#    session_id = str(uuid.uuid4())[:5]
-#    return {
-#        'session_id': session_id, 
-#        'name': '', 
-#        'is_live_chat': False,
-#        'history': [],
-#     }
+
+last_polled_at = 0
+POLL_INTERVAL = 2
+
+def poll_telegram_replies():
+    global sessions, last_polled_at
+
+    now = time.time()
+    if now - last_polled_at < POLL_INTERVAL:
+        return
+
+    last_polled_at = now
+    print('Polling')
+
+    def find_owning_session(message_id: int) -> Session | None:
+        for session in sessions.values():
+            if message_id in session.message_ids:
+                return session
+        return None
+
+    updates = telegram_client.get_updates()
+
+    for update in updates:
+        reply_to_message_id = update.get('message', {}).get('reply_to_message', {}).get('message_id')
+        is_broadcast = reply_to_message_id is None
+
+        message = update['message']['text']
+
+        response = {'role': 'assistant', 'content': message}
+        if is_broadcast:
+            print(f'Broadcasting to all {len(sessions)} sessions: {message}')
+            for session_id in sessions:
+                sessions[session_id].history.append(response)
+        else:
+            session = find_owning_session(reply_to_message_id)
+            if session:
+                print(f'Adding message to session {session.session_id}')
+                session.history.append(response)
 
 
 def refresh_chat(state: Session):
     global sessions
+
     if state is None:
         return [], state
+        # return gr.Chatbot(), state
 
-    print(f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())}')
-    # if 'session_id' not in state:
+    session_id = state.session_id
+    print(f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram_client.last_update_id}')
 
     history = state.history
     if not state.is_live_chat:
-        # return gr.skip(), gr.skip()
-        # return history, state
-        return gr.update(), state
+        return history, state
+        # return gr.Chatbot(), state
 
+    poll_telegram_replies()
 
-    last_update_id = state.telegram_last_update_id
-    telegram_updates = telegram_client.get_updates(last_update_id)
-    for update in telegram_updates:
-        message = update['message']['text']
-        history.append({'role': 'assistant', 'content': message})
-
-    if not telegram_updates:
-        # return history, state
-        return gr.update(), state
-    
-
-    print('Telegram Updates', len(telegram_updates))
-    print(telegram_updates)
-    last_update = telegram_updates[-1]
-    print('x' * 80)
-    print(last_update)
-
-    state.telegram_last_update_id = last_update['update_id']
-    return history, state
+    return sessions[session_id].history, state
 
 
 def chat(message, history, state: Session):
-    # if 'session_id' not in state:
     if state is None:
        state = init_session()
 
@@ -164,7 +179,11 @@ def chat(message, history, state: Session):
 
         #     return '', 'Live chat ended, back to normal mode', state
         # sent_telegram_message.invoke({'message': message})
-        telegram_client.send_message(message)
+        result = telegram_client.send_message(message)
+        print(f'Sent result: {type(result)} {result}')
+        message_id = result.get('message_id')
+        print(f'Adding new message id: {message_id}')
+        state.message_ids.add(message_id)
         # sleep(2)
         # telegram_updates = telegram_client.get_updates()
         # print('Telegram Updates')
@@ -174,7 +193,7 @@ def chat(message, history, state: Session):
         # print(x)
         # TODO: get response
         # return '', x['message']['text'], state
-        return '', gr.update(), state
+        return '', history, state
 
 
     history.append({'role': 'assistant', 'content': response})
@@ -215,31 +234,18 @@ with gr.Blocks(title=title, fill_height=True) as ui:
 
     ## Look closely into the mirror and you might just see me
     ''')
-    chatbot = gr.Chatbot(type='messages')
+
+    chatbot = gr.Chatbot(
+        type='messages',
+        height='80vh'
+    )
     msg = gr.Textbox(
         autofocus=True, 
         container=False,
     )
 
     msg.submit(chat, inputs=[msg, chatbot, state], outputs=[msg, chatbot, state])
-    gr.Timer(5).tick(refresh_chat, inputs=[state], outputs=[chatbot, state])
-   # chat_interface = gr.ChatInterface(
-   #    fn=chat,
-   #    type='messages',
-   #    additional_inputs=[state],
-   #    additional_outputs=[state],
-   #    # examples=['I want to chat with you'],
-   # )
-
-  # chat_interface.submit(
-  #     fn=chat,
-  #     inputs=[chat_interface.textbox, chat_interface.chatbot, state],
-  #     output=[chat_interface, state],
-  #     queue=False,
-  #   ).then(
-  #       # Clear the textbox *after* the main function runs
-  #       lambda: "", outputs=[chat_interface.textbox]
-  #   )
+    gr.Timer(1).tick(refresh_chat, inputs=[state], outputs=[chatbot, state])
 
 
 if __name__ == '__main__':

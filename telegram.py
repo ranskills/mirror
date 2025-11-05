@@ -6,6 +6,7 @@ class TelegramClient:
     self.token = token
     self.chat_id = chat_id
     self.base_url = f'https://api.telegram.org/bot{self.token}'
+    self.last_update_id: int | None = None
 
 
   def send_message(self, message):
@@ -15,13 +16,17 @@ class TelegramClient:
     print("Status Code:", response.status_code)
     ret = response.json()
 
-    return ret
+    return ret['result']
 
 
-  def get_updates(self, last_update_id: int | None):
+  def get_updates(self, last_update_id: int | None = None):
     print('Fetching updates from Telegram')
+
+    if not last_update_id:
+       last_update_id = self.last_update_id
+
     url = f'{self.base_url}/getUpdates'
-    # data = {'chat_id': self.chat_id, 'text': message}
+
     params = {'limit': 10, 'timeout': 30}
     if last_update_id is not None:
         params['offset'] = last_update_id + 1
@@ -32,7 +37,12 @@ class TelegramClient:
     ret = response.json()
 
     # if ret['ok']
-    return ret['result']
+    result = ret['result']
+
+    if result:
+       self.last_update_id = result[-1]['update_id']
+
+    return result
 
 
 def create_client(token, chat_id) -> TelegramClient:
