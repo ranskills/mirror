@@ -5,10 +5,11 @@ from dataclasses import dataclass, field
 
 import gradio as gr
 from dotenv import load_dotenv
+from pypdf import PdfReader
 
 from secret import get_secret
 from telegram import create_client
-
+from llm import create_agent_with_context
 
 SessionID: TypeAlias = str
 
@@ -40,8 +41,22 @@ TELEGRAM_CHAT_ID = get_secret('TELEGRAM_CHAT_ID')
 
 telegram_client = create_client(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
 
-def ask_llm(message, history, state):
-    pass
+KNOWLEDGE_BASE_DIR = 'knowledge-base'
+reader = PdfReader(f'{KNOWLEDGE_BASE_DIR}/Profile.pdf')
+
+context = 'LinkedIn Profile: '
+for page in reader.pages:
+    context += page.extract_text() + '\n\n'
+
+agent = create_agent_with_context(context)
+
+def ask_llm(message, history, state: Session):
+    # print('Current State', state)
+    messages = history + [{'role': 'user', 'content': message}]
+    result = agent.invoke({'messages': messages})
+
+    return result['messages'][-1].content
+
 
 message_to_ask_for_name = {'role': 'assistant', 'content': 'Before you enter my MirrorVerse, please tell me your name?'}
 
@@ -133,7 +148,7 @@ def chat(message, history, state: Session, timer: gr.Timer):
         history.append({'role': 'user', 'content': message})
 
         history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**'})
-        with open('knowledge-base/intro.md', 'r', encoding='utf-8') as file:
+        with open(f'{KNOWLEDGE_BASE_DIR}/intro.md', 'r', encoding='utf-8') as file:
             history.append({'role': 'assistant', 'content': file.read()})
 
         return '', history, state, gr.Timer(active=False)
@@ -170,8 +185,8 @@ def chat(message, history, state: Session, timer: gr.Timer):
         history.append({'role': 'assistant', 'content': response})
         return '', history, state, gr.Timer(active=False)
 
+    response = ask_llm(message, history, state)
     history.append({'role': 'assistant', 'content': response})
-
     return '', history, state, gr.Timer(active=False)
 
 
