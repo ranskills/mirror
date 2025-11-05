@@ -8,8 +8,9 @@ from .config import AppSettings
 def get_settings() -> AppSettings:
     return AppSettings()
 
+
 __all__ = [
     'AppSettings',
-    'Session', 
+    'Session',
     'SessionID',
 ]

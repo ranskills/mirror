@@ -30,7 +30,7 @@ model = ChatOpenAI(
 
 
 def _get_system_prompt(context: str, session: Session) -> str:
-    return f'''
+    return f"""
     You are a helpful assistant representing Ransford Okpoti as a digital twin.
     You are to sell him to the best of your abilities to potential clients and even
     future employers.
@@ -50,13 +50,10 @@ def _get_system_prompt(context: str, session: Session) -> str:
 
     Context:
     {context}
-    '''
-
-
+    """
 
 
 def create_agent_with_context(context: str, session: Session):
-
     agent = create_agent(
         model=model,
         system_prompt=_get_system_prompt(context, session),

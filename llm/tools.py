@@ -12,7 +12,7 @@ class LogUnansweredQuestionInput(BaseModel):
 
 @tool(args_schema=LogUnansweredQuestionInput)
 def log_unanswered_question(session_id, name, question):
-    '''Log questions that are not answered for later review to improve the system'''
+    """Log questions that are not answered for later review to improve the system"""
     print(f'I do not have an answer for the question: {session_id} | {name} | {question}')
 
     data = {
@@ -22,11 +22,7 @@ def log_unanswered_question(session_id, name, question):
     }
 
     try:
-        response = (
-            supabase.table('unanswered_questions')
-            .insert(data)
-            .execute()
-        )
+        response = supabase.table('unanswered_questions').insert(data).execute()
 
         print(response)
     except Exception as e:

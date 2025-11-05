@@ -37,20 +37,25 @@ def ask_llm(message, history, state: Session):
     return result['messages'][-1].content
 
 
-message_to_ask_for_name = {'role': 'assistant', 'content': 'Before you enter my MirrorVerse, please tell me your name?'}
+message_to_ask_for_name = {
+    'role': 'assistant',
+    'content': 'Before you enter my MirrorVerse, please tell me your name?',
+}
 
 
 def init_session() -> Session:
-   global sessions
+    global sessions
 
-   print('Initializing new session')
-   session = Session.new_session()
+    print('Initializing new session')
+    session = Session.new_session()
 
-   sessions[session.session_id] = session
-   return session
+    sessions[session.session_id] = session
+    return session
+
 
 last_polled_at = 0
 POLL_INTERVAL = 2
+
 
 def poll_telegram_replies():
     global sessions, last_polled_at
@@ -71,7 +76,9 @@ def poll_telegram_replies():
     updates = telegram_client.get_updates()
 
     for update in updates:
-        reply_to_message_id = update.get('message', {}).get('reply_to_message', {}).get('message_id')
+        reply_to_message_id = (
+            update.get('message', {}).get('reply_to_message', {}).get('message_id')
+        )
         is_broadcast = reply_to_message_id is None
 
         message = update['message']['text']
@@ -100,7 +107,9 @@ def refresh_chat(state: Session):
         return gr.Chatbot(type='messages'), state
 
     session_id = state.session_id
-    print(f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram_client.last_update_id}')
+    print(
+        f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram_client.last_update_id}'
+    )
 
     history = state.history
     if not state.is_live_chat:
@@ -114,7 +123,7 @@ def refresh_chat(state: Session):
 
 def chat(message, history, state: Session, timer: gr.Timer):
     if state is None:
-       state = init_session()
+        state = init_session()
 
     response = state.session_id
     history = state.history
@@ -132,19 +141,17 @@ def chat(message, history, state: Session, timer: gr.Timer):
 
         return '', history, state, gr.Timer(active=False)
 
-
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
-    live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', ]
+    live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done']
 
     if live_chat_request_received:
         state.is_live_chat = True
-        response = '''
+        response = """
         Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
         To exit live chat mode, type **exit**"
-        '''
+        """
         history.append({'role': 'assistant', 'content': response})
         return '', history, state, gr.Timer(active=True)
-
 
     history.append({'role': 'user', 'content': message})
 
@@ -171,13 +178,12 @@ def chat(message, history, state: Session, timer: gr.Timer):
 
 title = '🪞 Mirror'
 with gr.Blocks(title=title, fill_height=True) as ui:
-    
     state: Session | None = gr.State(None)
-    gr.Markdown('''
+    gr.Markdown("""
     # Mirror 🪞
 
     ## Look closely into the mirror and you might just see me
-    ''')
+    """)
 
     chatbot = gr.Chatbot(
         value=[message_to_ask_for_name],
@@ -185,7 +191,7 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         height='80vh',
     )
     msg = gr.Textbox(
-        autofocus=True, 
+        autofocus=True,
         container=False,
     )
     timer = gr.Timer(1, active=False)

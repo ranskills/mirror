@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 
 SessionID: TypeAlias = str
 
+
 @dataclass
 class Session:
     session_id: SessionID
