@@ -3,6 +3,7 @@ import time
 import gradio as gr
 from dotenv import load_dotenv
 from pypdf import PdfReader
+from langchain_core.messages import ToolMessage, HumanMessage
 
 from common import Session, SessionID
 from secret import get_secret
@@ -28,21 +29,33 @@ for page in reader.pages:
     context += page.extract_text() + '\n\n'
 
 
-def ask_llm(message, history, state: Session):
+def ask_llm(message, history, state: Session) -> tuple[str, tuple[str]]:
+    """
+    Ask the LLM a question within the context of the session.
+    Returns the response and the list of tools used.
+    """
     agent = create_agent_with_context(context, state)
 
     try:
         messages = history + [{'role': 'user', 'content': message}]
         result = agent.invoke({'messages': messages})
 
-        last_message = result['messages'][-1]
-        print('Last message')
-        print(last_message)
+        response_messages = result['messages']
+        msgs = response_messages[:-7:-1]
+        tools_used = []
+        for msg in msgs:
+            if isinstance(msg, ToolMessage):
+                tools_used.append(msg.name)
+            elif isinstance(msg, HumanMessage):
+                break
 
-        return last_message.content
+        last_message = response_messages[-1]
+        print('Toots Used', tools_used)
+
+        return last_message.content, tuple(tools_used)
     except Exception as e:
         print(f'Error invoking agent: {e}')
-        return "🔥 I'm sorry, I encountered an error while processing your request."
+        return "🔥 I'm sorry, I encountered an error while processing your request.", []
 
 
 message_to_ask_for_name = {
@@ -180,8 +193,13 @@ def chat(message, history, state: Session, timer: gr.Timer):
         history.append({'role': 'assistant', 'content': response})
         return '', history, state, gr.Timer(active=False)
 
-    response = ask_llm(message, history, state)
-    history.append({'role': 'assistant', 'content': response})
+    response, tools_used = ask_llm(message, history, state)
+
+    metadata = {}
+    if tools_used:
+        metadata['title'] = '🛠️ Tools used: ' + ', '.join(tools_used)
+    history.append({'role': 'assistant', 'content': response, 'metadata': metadata})
+
     return '', history, state, gr.Timer(active=False)
 
 
@@ -198,6 +216,8 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         value=[message_to_ask_for_name],
         type='messages',
         height='80vh',
+        resizable=True,
+        group_consecutive_messages=False,
     )
     msg = gr.Textbox(
         autofocus=True,
