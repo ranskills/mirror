@@ -30,11 +30,19 @@ for page in reader.pages:
 
 def ask_llm(message, history, state: Session):
     agent = create_agent_with_context(context, state)
-    # print('Current State', state)
-    messages = history + [{'role': 'user', 'content': message}]
-    result = agent.invoke({'messages': messages})
 
-    return result['messages'][-1].content
+    try:
+        messages = history + [{'role': 'user', 'content': message}]
+        result = agent.invoke({'messages': messages})
+
+        last_message = result['messages'][-1]
+        print('Last message')
+        print(last_message)
+
+        return last_message.content
+    except Exception as e:
+        print(f'Error invoking agent: {e}')
+        return "🔥 I'm sorry, I encountered an error while processing your request."
 
 
 message_to_ask_for_name = {
@@ -142,14 +150,15 @@ def chat(message, history, state: Session, timer: gr.Timer):
         return '', history, state, gr.Timer(active=False)
 
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
-    live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done']
+    live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', 'end']
 
     if live_chat_request_received:
         state.is_live_chat = True
         response = """
         Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
-        To exit live chat mode, type **exit**"
+        To exit live chat mode, type **exit**
         """
+        history.append({'role': 'user', 'content': message})
         history.append({'role': 'assistant', 'content': response})
         return '', history, state, gr.Timer(active=True)
 
