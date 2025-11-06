@@ -4,7 +4,7 @@ import gradio as gr
 from pypdf import PdfReader
 from langchain_core.messages import ToolMessage, HumanMessage
 
-from common import Session, SessionID
+from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR
 from client import create_telegram_client
 from llm import create_agent_with_context
 
@@ -13,7 +13,6 @@ sessions: dict[SessionID, Session] = {}
 
 telegram = create_telegram_client()
 
-KNOWLEDGE_BASE_DIR = 'knowledge-base'
 reader = PdfReader(f'{KNOWLEDGE_BASE_DIR}/Profile.pdf')
 
 context = 'LinkedIn Profile: '
@@ -67,7 +66,7 @@ def init_session() -> Session:
 
 
 last_polled_at = 0
-POLL_INTERVAL = 2
+POLL_INTERVAL = 1
 
 
 def poll_telegram_replies():
@@ -134,6 +133,41 @@ def refresh_chat(state: Session):
     return sessions[session_id].history, state
 
 
+def request_user_name(message, history, state: Session, timer: gr.Timer):
+    state.name = message.strip()
+    print(f'User says he/she is: {message}')
+    # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
+    history.append(message_to_ask_for_name)
+    history.append({'role': 'user', 'content': message})
+
+    history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**! 🫱🏾‍🫲🏽'})
+    with open(KNOWLEDGE_BASE_DIR / 'intro.md', 'r', encoding='utf-8') as file:
+        history.append({'role': 'assistant', 'content': file.read()})
+
+    return '', history, state, gr.Timer(active=False)
+
+
+def handle_live_chat_request(message, history, state: Session, timer: gr.Timer):
+    state.is_live_chat = True
+    response = """
+    Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
+    To exit live chat mode, type **exit**
+    """
+
+    history.append({'role': 'user', 'content': message})
+    history.append({'role': 'assistant', 'content': response})
+
+    return '', history, state, gr.Timer(active=True)
+
+
+def handle_live_chat_exit(message, history, state: Session, timer: gr.Timer):
+    state.is_live_chat = False
+    response = 'Live chat **deactivated**. You can continue chatting with the mirror bot.'
+    history.append({'role': 'assistant', 'content': response})
+
+    return '', history, state, gr.Timer(active=False)
+
+
 def chat(message, history, state: Session, timer: gr.Timer):
     if state is None:
         state = init_session()
@@ -142,30 +176,13 @@ def chat(message, history, state: Session, timer: gr.Timer):
     history = state.history
 
     if not state.name:
-        state.name = message.strip()
-        print(f'User says he/she is: {message}')
-        # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
-        history.append(message_to_ask_for_name)
-        history.append({'role': 'user', 'content': message})
-
-        history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**'})
-        with open(f'{KNOWLEDGE_BASE_DIR}/intro.md', 'r', encoding='utf-8') as file:
-            history.append({'role': 'assistant', 'content': file.read()})
-
-        return '', history, state, gr.Timer(active=False)
+        return request_user_name(message, history, state, timer)
 
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
     live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', 'end']
 
     if live_chat_request_received:
-        state.is_live_chat = True
-        response = """
-        Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
-        To exit live chat mode, type **exit**
-        """
-        history.append({'role': 'user', 'content': message})
-        history.append({'role': 'assistant', 'content': response})
-        return '', history, state, gr.Timer(active=True)
+        return handle_live_chat_request(message, history, state, timer)
 
     history.append({'role': 'user', 'content': message})
 
@@ -180,10 +197,7 @@ def chat(message, history, state: Session, timer: gr.Timer):
 
     exit_live_chat = state.is_live_chat and live_chat_exit_received
     if exit_live_chat:
-        state.is_live_chat = False
-        response = 'Live chat **deactivated**. You can continue chatting with the mirror bot.'
-        history.append({'role': 'assistant', 'content': response})
-        return '', history, state, gr.Timer(active=False)
+        return handle_live_chat_exit(message, history, state, timer)
 
     response, tools_used = ask_llm(message, history, state)
 
@@ -210,6 +224,7 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         height='80vh',
         # resizable=True,
         group_consecutive_messages=False,
+        avatar_images=[AVATARS_DIR / 'circle-user.svg', AVATARS_DIR / 'chatbot.svg'],
     )
     msg = gr.Textbox(
         autofocus=True,

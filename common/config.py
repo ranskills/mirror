@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from typing import Annotated
 
 from pydantic import SecretStr, Field
@@ -12,3 +14,9 @@ class AppSettings(BaseSettings):
 
     TELEGRAM_TOKEN: Annotated[SecretStr, Field(...)]
     TELEGRAM_CHAT_ID: Annotated[str, Field(...)]
+
+
+BASE_DIR = Path(os.environ.get('BASE_DIR', Path(__file__).parent.parent))
+
+KNOWLEDGE_BASE_DIR = BASE_DIR / 'knowledge-base'
+AVATARS_DIR = BASE_DIR / 'avatars'
