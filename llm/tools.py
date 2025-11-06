@@ -1,12 +1,15 @@
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from client import supabase
+from client import supabase, create_telegram_client
 
 
-class LogUnansweredQuestionInput(BaseModel):
+class SessionDetails(BaseModel):
     session_id: str = Field(description='The ID for the active session')
     name: str = Field(description='The name of user')
+
+
+class LogUnansweredQuestionInput(SessionDetails):
     question: str = Field(description='The question that was not answered')
 
 
@@ -27,3 +30,38 @@ def log_unanswered_question(session_id, name, question):
         print(response)
     except Exception as e:
         print(f'Error logging unanswered question: {e}')
+
+    try:
+        telegram = create_telegram_client()
+        telegram.send_message(
+            f'Unanswered Question from {name} (Session: {session_id}): {question}'
+        )
+    except Exception as e:
+        print(f'Error sending telegram message: {e}')
+
+
+class RecordUserDetails(SessionDetails):
+    email: str = Field(description='The email of the user')
+    notes: str = Field(
+        description="additional information about the conversation that's worth recording to give context"
+    )
+
+
+@tool(args_schema=RecordUserDetails)
+def record_user_details(session_id, name, email, notes):
+    """Record user details for future reference. Email to be collected and no phone numbers"""
+    print(f'Recording user details: {session_id} | {name} | {email}')
+
+    data = {
+        'session_id': session_id,
+        'user': name,
+        'email': email,
+        'notes': notes,
+    }
+
+    try:
+        response = supabase.table('user_details').insert(data).execute()
+
+        print(response)
+    except Exception as e:
+        print(f'Error recording user details: {e}')

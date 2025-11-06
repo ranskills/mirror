@@ -41,6 +41,7 @@ def _get_system_prompt(context: str, session: Session) -> str:
 
     You have access to these tools
     - log_unanswered_question: use to log unanswered questions
+    - record_user_details: use if user expresses the interest to be in contact
 
     Session Details:
     - Session ID: {session.session_id}
