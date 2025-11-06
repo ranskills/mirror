@@ -1,25 +1,17 @@
 import time
 
 import gradio as gr
-from dotenv import load_dotenv
 from pypdf import PdfReader
 from langchain_core.messages import ToolMessage, HumanMessage
 
 from common import Session, SessionID
-from secret import get_secret
 from client import create_telegram_client
 from llm import create_agent_with_context
 
 
 sessions: dict[SessionID, Session] = {}
 
-load_dotenv(override=True)
-
-TELEGRAM_TOKEN = get_secret('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = get_secret('TELEGRAM_CHAT_ID')
-
-
-telegram_client = create_telegram_client(TELEGRAM_TOKEN, TELEGRAM_CHAT_ID)
+telegram = create_telegram_client()
 
 KNOWLEDGE_BASE_DIR = 'knowledge-base'
 reader = PdfReader(f'{KNOWLEDGE_BASE_DIR}/Profile.pdf')
@@ -94,7 +86,7 @@ def poll_telegram_replies():
                 return session
         return None
 
-    updates = telegram_client.get_updates()
+    updates = telegram.get_updates()
 
     for update in updates:
         reply_to_message_id = (
@@ -129,7 +121,7 @@ def refresh_chat(state: Session):
 
     session_id = state.session_id
     print(
-        f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram_client.last_update_id}'
+        f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram.last_update_id}'
     )
 
     history = state.history
@@ -178,7 +170,7 @@ def chat(message, history, state: Session, timer: gr.Timer):
     history.append({'role': 'user', 'content': message})
 
     if state.is_live_chat and not live_chat_exit_received:
-        result = telegram_client.send_message(message)
+        result = telegram.send_message(message)
         print(f'Sent result: {type(result)} {result}')
         message_id = result.get('message_id')
         print(f'Adding new message id: {message_id}')
@@ -216,7 +208,7 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         value=[message_to_ask_for_name],
         type='messages',
         height='80vh',
-        resizable=True,
+        # resizable=True,
         group_consecutive_messages=False,
     )
     msg = gr.Textbox(

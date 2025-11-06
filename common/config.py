@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from pydantic import SecretStr, Field, HttpUrl
+from pydantic import SecretStr, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,3 +9,6 @@ class AppSettings(BaseSettings):
 
     SUPABASE_URL: Annotated[str, Field(...)]
     SUPABASE_KEY: Annotated[SecretStr, Field(...)]
+
+    TELEGRAM_TOKEN: Annotated[SecretStr, Field(...)]
+    TELEGRAM_CHAT_ID: Annotated[str, Field(...)]

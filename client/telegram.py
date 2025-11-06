@@ -43,5 +43,5 @@ class TelegramClient:
         return result
 
 
-def create_telegram_client(token, chat_id) -> TelegramClient:
+def create_client(token: str, chat_id: str) -> TelegramClient:
     return TelegramClient(token, chat_id)
