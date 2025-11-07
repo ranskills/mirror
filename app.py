@@ -27,10 +27,8 @@ message_to_ask_for_name = {
 
 def init_session() -> Session:
     global sessions
-
-    print('Initializing new session')
+    logger.debug('Initializing new session')
     session = Session.new_session()
-
     sessions[session.session_id] = session
     return session
 
@@ -47,7 +45,7 @@ def poll_telegram_replies():
         return
 
     last_polled_at = now
-    print('Polling')
+    logger.debug('Polling telegram for updates')
 
     def find_owning_session(message_id: int) -> Session | None:
         for session in sessions.values():
@@ -67,7 +65,7 @@ def poll_telegram_replies():
 
         response = {'role': 'assistant', 'content': message}
         if is_broadcast:
-            print(f'Broadcasting to all {len(sessions)} sessions: {message}')
+            logger.info(f'Broadcasting to all {len(sessions)} sessions: {message}')
             for session_id in sessions:
                 session = sessions[session_id]
 
@@ -76,7 +74,7 @@ def poll_telegram_replies():
         else:
             session = find_owning_session(reply_to_message_id)
             if session:
-                print(f'Adding message to session {session.session_id}')
+                logger.debug(f'Adding message to session {session.session_id}')
                 if session.is_live_chat:
                     session.history.append(response)
 
@@ -85,18 +83,16 @@ def refresh_chat(state: Session):
     global sessions
 
     if state is None or not state.is_live_chat:
-        # return [], state
         return gr.Chatbot(type='messages'), state
 
     session_id = state.session_id
-    print(
+    logger.debug(
         f'Refreshing state {state.session_id}. # Session: {len(sessions.keys())} Last Update ID: {telegram.last_update_id}'
     )
 
     history = state.history
     if not state.is_live_chat:
         return history, state
-        # return gr.Chatbot(), state
 
     poll_telegram_replies()
 
@@ -105,7 +101,7 @@ def refresh_chat(state: Session):
 
 def handle_user_name(message, history, state: Session, timer: gr.Timer):
     state.name = message.strip()
-    print(f'User says he/she is: {message}')
+    logger.info(f'New user joined: {message}')
     # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
     history.append(message_to_ask_for_name)
     history.append({'role': 'user', 'content': message})
@@ -160,9 +156,9 @@ def chat(message, history, state: Session, timer: gr.Timer):
 
     if state.is_live_chat and not live_chat_exit_received:
         result = telegram.send_message(message)
-        print(f'Sent result: {type(result)} {result}')
+        logger.debug(f'Telegram API response: {type(result)} {result}')
         message_id = result.get('message_id')
-        print(f'Adding new message id: {message_id}')
+        logger.debug(f'Adding new message id: {message_id}')
         state.message_ids.add(message_id)
 
         return '', history, state, gr.Timer(active=True)
