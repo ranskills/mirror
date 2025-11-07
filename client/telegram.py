@@ -5,8 +5,7 @@ class TelegramClient:
     def __init__(self, token: str, chat_id: str):
         self.token = token
         self.chat_id = chat_id
-        # self.base_url = f'https://api.telegram.org/bot{self.token}'
-        self.base_url = f'https://149.154.167.220/bot{self.token}'
+        self.base_url = f'https://api.telegram.org/bot{self.token}'
         self.last_update_id: int | None = None
 
     def send_message(self, message):

@@ -1,4 +1,6 @@
 import time
+from typing import Any, TypeAlias
+from collections.abc import Generator
 
 import gradio as gr
 from pypdf import PdfReader
@@ -7,6 +9,9 @@ from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR, logger
 from client import create_telegram_client
 from llm import get_proverb, chat_llm
 
+
+ChatHistory: TypeAlias = list[dict[str, str]]
+ChatOutput: TypeAlias = tuple[str, ChatHistory, Session, gr.Timer]
 
 sessions: dict[SessionID, Session] = {}
 
@@ -99,22 +104,38 @@ def refresh_chat(state: Session):
     return sessions[session_id].history, state
 
 
-def handle_user_name(message, history, state: Session, timer: gr.Timer):
+def handle_user_name(
+    message, history, state: Session, timer: gr.Timer
+) -> Generator[ChatOutput, None, None]:
     state.name = message.strip()
     logger.info(f'New user joined: {message}')
-    # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
+
     history.append(message_to_ask_for_name)
     history.append({'role': 'user', 'content': message})
 
+    yield '', history, state, gr.Timer(active=False)
+
     history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**! 🫱🏾‍🫲🏽'})
+    yield '', history, state, gr.Timer(active=False)
+
     history.append({'role': 'assistant', 'content': get_proverb()})
+    yield '', history, state, gr.Timer(active=False)
+
+    history.append({'role': 'assistant', 'content': ''})
     with open(KNOWLEDGE_BASE_DIR / 'intro.md', 'r', encoding='utf-8') as file:
-        history.append({'role': 'assistant', 'content': file.read()})
+        content = ''
+        for line in file:
+            content += line
+            history[-1] = {'role': 'assistant', 'content': content}
+            from time import sleep
 
-    return '', history, state, gr.Timer(active=False)
+            sleep(0.1)
+            yield '', history, state, gr.Timer(active=False)
 
 
-def handle_live_chat_request(message, history, state: Session, timer: gr.Timer):
+def handle_live_chat_request(
+    message, history, state: Session, timer: gr.Timer
+) -> Generator[ChatOutput, None, None]:
     state.is_live_chat = True
     response = """
     Live chat **activated** 👤↔️👤, if he is not busy, you will get a response.
@@ -125,18 +146,20 @@ def handle_live_chat_request(message, history, state: Session, timer: gr.Timer):
     history.append({'role': 'user', 'content': message})
     history.append({'role': 'assistant', 'content': response})
 
-    return '', history, state, gr.Timer(active=True)
+    yield '', history, state, gr.Timer(active=True)
 
 
-def handle_live_chat_exit(message, history, state: Session, timer: gr.Timer):
+def handle_live_chat_exit(
+    message, history, state: Session, timer: gr.Timer
+) -> Generator[ChatOutput, None, None]:
     state.is_live_chat = False
     response = 'Live chat **deactivated**. You can continue chatting with the mirror bot.'
     history.append({'role': 'assistant', 'content': response})
 
-    return '', history, state, gr.Timer(active=False)
+    yield '', history, state, gr.Timer(active=False)
 
 
-def chat(message, history, state: Session, timer: gr.Timer):
+def chat(message, history, state: Session, timer: gr.Timer) -> Generator[ChatOutput, None, None]:
     if state is None:
         state = init_session()
 
@@ -144,13 +167,15 @@ def chat(message, history, state: Session, timer: gr.Timer):
     history = state.history
 
     if not state.name:
-        return handle_user_name(message, history, state, timer)
+        yield from handle_user_name(message, history, state, timer)
+        return
 
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
     live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', 'end']
 
     if live_chat_request_received:
-        return handle_live_chat_request(message, history, state, timer)
+        yield from handle_live_chat_request(message, history, state, timer)
+        return
 
     history.append({'role': 'user', 'content': message})
 
@@ -161,20 +186,24 @@ def chat(message, history, state: Session, timer: gr.Timer):
         logger.debug(f'Adding new message id: {message_id}')
         state.message_ids.add(message_id)
 
-        return '', history, state, gr.Timer(active=True)
+        yield '', history, state, gr.Timer(active=True)
+        return
 
     exit_live_chat = state.is_live_chat and live_chat_exit_received
     if exit_live_chat:
-        return handle_live_chat_exit(message, history, state, timer)
+        yield from handle_live_chat_exit(message, history, state, timer)
+        return
 
-    response, tools_used = chat_llm(context, message, history, state)
+    history.append({'role': 'assistant', 'content': '', 'metadata': {}})
+    full_response = ''
+    for response, tools_used in chat_llm(context, message, history, state):
+        full_response += response
+        metadata = {}
+        if tools_used:
+            metadata['title'] = '🛠️ Tools used: ' + ', '.join(tools_used)
+        history[-1] = {'role': 'assistant', 'content': full_response, 'metadata': metadata}
 
-    metadata = {}
-    if tools_used:
-        metadata['title'] = '🛠️ Tools used: ' + ', '.join(tools_used)
-    history.append({'role': 'assistant', 'content': response, 'metadata': metadata})
-
-    return '', history, state, gr.Timer(active=False)
+        yield '', history, state, gr.Timer(active=False)
 
 
 title = '🪞 Mirror'
