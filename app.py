@@ -6,7 +6,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 
 from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR
 from client import create_telegram_client
-from llm import create_agent_with_context
+from llm import create_agent_with_context, get_proverb
 
 
 sessions: dict[SessionID, Session] = {}
@@ -133,7 +133,7 @@ def refresh_chat(state: Session):
     return sessions[session_id].history, state
 
 
-def request_user_name(message, history, state: Session, timer: gr.Timer):
+def handle_user_name(message, history, state: Session, timer: gr.Timer):
     state.name = message.strip()
     print(f'User says he/she is: {message}')
     # state.history.append({'role': 'assistant', 'content': 'Please, what is your name?'})
@@ -141,6 +141,7 @@ def request_user_name(message, history, state: Session, timer: gr.Timer):
     history.append({'role': 'user', 'content': message})
 
     history.append({'role': 'assistant', 'content': f'Thank you, **{state.name}**! 🫱🏾‍🫲🏽'})
+    history.append({'role': 'assistant', 'content': get_proverb()})
     with open(KNOWLEDGE_BASE_DIR / 'intro.md', 'r', encoding='utf-8') as file:
         history.append({'role': 'assistant', 'content': file.read()})
 
@@ -176,7 +177,7 @@ def chat(message, history, state: Session, timer: gr.Timer):
     history = state.history
 
     if not state.name:
-        return request_user_name(message, history, state, timer)
+        return handle_user_name(message, history, state, timer)
 
     live_chat_request_received = message.lower() in ['mirror', 'mirror mirror']
     live_chat_exit_received = message.lower() in ['exit', 'goodbye', 'bye', 'done', 'end']
@@ -215,7 +216,7 @@ with gr.Blocks(title=title, fill_height=True) as ui:
     gr.Markdown("""
     # Mirror 🪞
 
-    ## Look closely into the mirror and you might just see me
+    ## Look closely into the mirror and you might just see 👀 me!
     """)
 
     chatbot = gr.Chatbot(

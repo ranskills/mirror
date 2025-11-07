@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
 from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
 from common import Session
 from secret import get_secret
@@ -77,3 +78,17 @@ def create_agent_with_context(context: str, session: Session):
     )
 
     return agent
+
+def get_proverb() -> str:
+    agent = create_agent(
+        model=model,
+        system_prompt='''
+        You are African knowledgeable in useful proverbs.
+        Offer an explanation it has a deeper meaning, but keep it brief.
+        Only show proverbs in English.
+        ''',
+        debug=True,
+    )
+
+    result = agent.invoke({'messages': HumanMessage(content='Give 1 proverb to welcome a new person I am meeting.') })
+    return result['messages'][-1].content
