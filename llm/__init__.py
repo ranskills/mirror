@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 from langchain.agents import create_agent
-from langchain.tools import tool
+from langchain.agents.middleware import PIIMiddleware
 from langchain_openai import ChatOpenAI
 
 from common import Session
@@ -60,6 +60,15 @@ def create_agent_with_context(context: str, session: Session):
         system_prompt=_get_system_prompt(context, session),
         tools=[
             log_unanswered_question,
+        ],
+        middleware=[
+            PIIMiddleware('email', strategy='redact', apply_to_output=True),
+            PIIMiddleware(
+                'phone_number',
+                detector=r'(\+\d{1,3}\s?)?(\(?\d+\)?[-\s]?){2,}\d+',
+                strategy='mask',
+                apply_to_output=True
+            ),
         ],
         debug=True,
     )
