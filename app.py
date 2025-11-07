@@ -6,7 +6,7 @@ from langchain_core.messages import ToolMessage, HumanMessage
 
 from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR
 from client import create_telegram_client
-from llm import create_agent_with_context, get_proverb
+from llm import get_proverb, chat_llm
 
 
 sessions: dict[SessionID, Session] = {}
@@ -18,35 +18,6 @@ reader = PdfReader(f'{KNOWLEDGE_BASE_DIR}/Profile.pdf')
 context = 'LinkedIn Profile: '
 for page in reader.pages:
     context += page.extract_text() + '\n\n'
-
-
-def ask_llm(message, history, state: Session) -> tuple[str, tuple[str]]:
-    """
-    Ask the LLM a question within the context of the session.
-    Returns the response and the list of tools used.
-    """
-    agent = create_agent_with_context(context, state)
-
-    try:
-        messages = history + [{'role': 'user', 'content': message}]
-        result = agent.invoke({'messages': messages})
-
-        response_messages = result['messages']
-        msgs = response_messages[:-7:-1]
-        tools_used = []
-        for msg in msgs:
-            if isinstance(msg, ToolMessage):
-                tools_used.append(msg.name)
-            elif isinstance(msg, HumanMessage):
-                break
-
-        last_message = response_messages[-1]
-        print('Toots Used', tools_used)
-
-        return last_message.content, tuple(tools_used)
-    except Exception as e:
-        print(f'Error invoking agent: {e}')
-        return "🔥 I'm sorry, I encountered an error while processing your request.", []
 
 
 message_to_ask_for_name = {
@@ -200,7 +171,7 @@ def chat(message, history, state: Session, timer: gr.Timer):
     if exit_live_chat:
         return handle_live_chat_exit(message, history, state, timer)
 
-    response, tools_used = ask_llm(message, history, state)
+    response, tools_used = chat_llm(context, message, history, state)
 
     metadata = {}
     if tools_used:

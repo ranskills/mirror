@@ -1,94 +1,45 @@
-from datetime import datetime, timezone
-
 from dotenv import load_dotenv
 
-from langchain.agents import create_agent
-from langchain.agents.middleware import PIIMiddleware
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 
 from common import Session
-from secret import get_secret
-from .tools import log_unanswered_question, record_user_details
-from .guardrails import PromptInjectionFirewall
+
+from .agents import create_chat_agent, create_proverb_agent
 
 load_dotenv()
 
 
-# base_url='https://router.huggingface.co/v1',
-# api_key=get_secret('HF_TOKEN'),
-# model='openai/gpt-oss-120b',
+proverb_agent = create_proverb_agent()
 
-api_key = get_secret('CEREBRAS_API_KEY')
-base_url = 'https://api.cerebras.ai/v1'
-model = 'gpt-oss-120b'
-
-model = ChatOpenAI(
-    api_key=api_key,
-    base_url=base_url,
-    model=model,
-    temperature=0.2,
-)
-
-
-def _get_system_prompt(context: str, session: Session) -> str:
-    return f"""
-    You are a helpful assistant representing Ransford Okpoti as a digital twin.
-    You are to sell him to the best of your abilities to potential clients and even
-    future employers.
-    You response should be based on the provided context. If you do not have response
-    because the question is irrevelant, say so.
-    Be kind in your interactions and not provoked by any question from the user.
-    Do not make up responses, strictly restrict yourself to the provided context.
-
-    You have access to these tools
-    - log_unanswered_question: use to log unanswered questions
-    - record_user_details: use if user expresses an interest to be in contact
-
-    Session Details:
-    - Session ID: {session.session_id}
-    - User Name: {session.name}
-
-    Current Time: {datetime.now(timezone.utc).isoformat}
-
-    Context:
-    {context}
+def chat_llm(context: str, message: str, history: list[dict], state: Session) -> tuple[str, tuple[str]]:
     """
+    Ask the LLM a question within the context of the session.
+    Returns the response and the list of tools used.
+    """
+    agent = create_chat_agent(context, state)
 
+    try:
+        messages = history + [{'role': 'user', 'content': message}]
+        result = agent.invoke({'messages': messages})
 
-def create_agent_with_context(context: str, session: Session):
-    agent = create_agent(
-        model=model,
-        system_prompt=_get_system_prompt(context, session),
-        tools=[
-            log_unanswered_question,
-            record_user_details,
-        ],
-        middleware=[
-            PromptInjectionFirewall(strategy='basic'),
-            PIIMiddleware('email', strategy='redact', apply_to_output=True),
-            PIIMiddleware(
-                'phone_number',
-                detector=r'(\+\d{1,3}\s?)?(\(?\d+\)?[-\s]?){2,}\d+',
-                strategy='mask',
-                apply_to_output=True,
-            ),
-        ],
-        debug=True,
-    )
+        response_messages = result['messages']
+        msgs = response_messages[:-7:-1]
+        tools_used = []
+        for msg in msgs:
+            if isinstance(msg, ToolMessage):
+                tools_used.append(msg.name)
+            elif isinstance(msg, HumanMessage):
+                break
 
-    return agent
+        last_message = response_messages[-1]
+        print('Toots Used', tools_used)
+
+        return last_message.content, tuple(tools_used)
+    except Exception as e:
+        print(f'Error invoking agent: {e}')
+        return "🔥 I'm sorry, I encountered an error while processing your request.", []
+
 
 def get_proverb() -> str:
-    agent = create_agent(
-        model=model,
-        system_prompt='''
-        You are African knowledgeable in useful proverbs.
-        Offer an explanation it has a deeper meaning, but keep it brief.
-        Only show proverbs in English.
-        ''',
-        debug=True,
-    )
-
-    result = agent.invoke({'messages': HumanMessage(content='Give 1 proverb to welcome a new person I am meeting.') })
+    result = proverb_agent.invoke({'messages': HumanMessage(content='Give 1 proverb to welcome a new person I am meeting.') })
     return result['messages'][-1].content
