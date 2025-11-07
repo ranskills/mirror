@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from common import Session
 from secret import get_secret
 from .tools import log_unanswered_question
+from .guardrails import PromptInjectionFirewall
 
 load_dotenv()
 
@@ -62,12 +63,13 @@ def create_agent_with_context(context: str, session: Session):
             log_unanswered_question,
         ],
         middleware=[
+            PromptInjectionFirewall(strategy='basic'),
             PIIMiddleware('email', strategy='redact', apply_to_output=True),
             PIIMiddleware(
                 'phone_number',
                 detector=r'(\+\d{1,3}\s?)?(\(?\d+\)?[-\s]?){2,}\d+',
                 strategy='mask',
-                apply_to_output=True
+                apply_to_output=True,
             ),
         ],
         debug=True,
