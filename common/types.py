@@ -13,6 +13,8 @@ class Session:
     is_live_chat: bool
     history: list[dict[str, str]]
     message_ids: set[int] = field(default_factory=set)
+    # Epoch time
+    live_chat_start_at: float | None = None
 
     @classmethod
     def new_session(cls) -> 'Session':

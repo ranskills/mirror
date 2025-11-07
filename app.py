@@ -2,9 +2,8 @@ import time
 
 import gradio as gr
 from pypdf import PdfReader
-from langchain_core.messages import ToolMessage, HumanMessage
 
-from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR
+from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR, logger
 from client import create_telegram_client
 from llm import get_proverb, chat_llm
 
@@ -126,6 +125,7 @@ def handle_live_chat_request(message, history, state: Session, timer: gr.Timer):
     To exit live chat mode, type **exit**
     """
 
+    state.live_chat_start_at = time.time()
     history.append({'role': 'user', 'content': message})
     history.append({'role': 'assistant', 'content': response})
 
