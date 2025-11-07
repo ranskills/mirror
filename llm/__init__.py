@@ -8,7 +8,7 @@ from langchain_openai import ChatOpenAI
 
 from common import Session
 from secret import get_secret
-from .tools import log_unanswered_question
+from .tools import log_unanswered_question, record_user_details
 from .guardrails import PromptInjectionFirewall
 
 load_dotenv()
@@ -42,7 +42,7 @@ def _get_system_prompt(context: str, session: Session) -> str:
 
     You have access to these tools
     - log_unanswered_question: use to log unanswered questions
-    - record_user_details: use if user expresses the interest to be in contact
+    - record_user_details: use if user expresses an interest to be in contact
 
     Session Details:
     - Session ID: {session.session_id}
@@ -61,6 +61,7 @@ def create_agent_with_context(context: str, session: Session):
         system_prompt=_get_system_prompt(context, session),
         tools=[
             log_unanswered_question,
+            record_user_details,
         ],
         middleware=[
             PromptInjectionFirewall(strategy='basic'),
