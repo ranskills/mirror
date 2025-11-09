@@ -1,7 +1,7 @@
 from functools import lru_cache
 
 from .types import Session, SessionID
-from .config import AppSettings, BASE_DIR, KNOWLEDGE_BASE_DIR, AVATARS_DIR
+from .config.app import AppSettings, BASE_DIR, KNOWLEDGE_BASE_DIR, AVATARS_DIR
 from logger import create_logger
 
 

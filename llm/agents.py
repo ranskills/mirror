@@ -7,30 +7,17 @@ from langchain.agents.middleware import PIIMiddleware
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
-from common import Session
+from common import Session, get_settings
 from secret import get_secret
 from .tools import log_unanswered_question, record_user_details
 from .guardrails import PromptInjectionFirewall
+from .model import get_llm
 
 load_dotenv()
 
 
-base_url = 'https://router.huggingface.co/v1'
-api_key = get_secret('HF_TOKEN')
-model = 'openai/gpt-oss-120b'
-
-# api_key = get_secret('CEREBRAS_API_KEY')
-# base_url = 'https://api.cerebras.ai/v1'
-# model = 'gpt-oss-120b'
-
-model = ChatOpenAI(
-    api_key=api_key,
-    base_url=base_url,
-    model=model,
-    temperature=0.2,
-)
-
-DEBUG = True
+settings = get_settings()
+model = get_llm(settings)
 
 
 def _get_system_prompt(context: str, session: Session) -> str:
@@ -76,7 +63,7 @@ def create_chat_agent(context: str, session: Session):
                 apply_to_output=True,
             ),
         ],
-        debug=DEBUG,
+        debug=settings.llm.DEBUG,
     )
 
     return agent
@@ -90,7 +77,7 @@ def create_proverb_agent():
         Offer an explanation it has a deeper meaning, but keep it brief.
         Only show proverbs in English.
         """,
-        debug=DEBUG,
+        debug=settings.llm.DEBUG,
     )
 
     return agent
