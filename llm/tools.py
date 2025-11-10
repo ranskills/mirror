@@ -1,7 +1,11 @@
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
-from client import supabase, create_telegram_client
+from common import get_settings
+from client import supabase, create_telegram_client, send_pushover_notificaiton
+
+
+settings = get_settings()
 
 
 class SessionDetails(BaseModel):
@@ -65,3 +69,13 @@ def record_user_details(session_id, name, email, notes):
         print(response)
     except Exception as e:
         print(f'Error recording user details: {e}')
+
+
+class PushNoticiationInput(BaseModel):
+    message: str = Field(description='The message to send')
+
+
+@tool(args_schema=PushNoticiationInput)
+def send_push_notification(message: str):
+    """Send push notification"""
+    return send_pushover_notificaiton(message)

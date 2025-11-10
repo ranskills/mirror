@@ -4,12 +4,9 @@ from dotenv import load_dotenv
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
 
 from common import Session, get_settings
-from secret import get_secret
-from .tools import log_unanswered_question, record_user_details
+from .tools import log_unanswered_question, record_user_details, send_push_notification
 from .guardrails import PromptInjectionFirewall
 from .model import get_llm
 
@@ -52,6 +49,7 @@ def create_chat_agent(context: str, session: Session):
         tools=[
             log_unanswered_question,
             record_user_details,
+            send_push_notification,
         ],
         middleware=[
             PromptInjectionFirewall(strategy='basic'),

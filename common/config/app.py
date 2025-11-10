@@ -17,6 +17,9 @@ class AppSettings(BaseSettings):
     TELEGRAM_TOKEN: Annotated[SecretStr, Field(...)]
     TELEGRAM_CHAT_ID: Annotated[str, Field(...)]
 
+    PUSHOVER_USER: Annotated[str, Field(...)]
+    PUSHOVER_API_KEY: Annotated[SecretStr, Field(...)]
+
     llm: Annotated[LLMSettings, Field(default_factory=lambda: LLMSettings())]
 
 

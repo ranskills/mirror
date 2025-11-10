@@ -1,7 +1,8 @@
 from .supabase import supabase
 from .telegram import create_client, TelegramClient
+from .pushover import create_send_push_notifcation
 
-from common import get_settings
+from common import get_settings, logger
 
 settings = get_settings()
 
@@ -22,8 +23,15 @@ def create_telegram_client() -> TelegramClient:
     return _telegram_client
 
 
+send_pushover_notificaiton = create_send_push_notifcation(
+    logger=logger,
+    token=settings.PUSHOVER_API_KEY.get_secret_value(),
+    user=settings.PUSHOVER_USER,
+)
+
 __all__ = [
     'supabase',
     'create_telegram_client',
+    'send_pushover_notificaiton',
     'TelegramClient',
 ]
