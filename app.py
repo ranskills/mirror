@@ -1,14 +1,13 @@
 import time
-from typing import Any, TypeAlias
 from collections.abc import Generator
+from typing import TypeAlias
 
 import gradio as gr
-from pypdf import PdfReader
-
-from common import Session, SessionID, KNOWLEDGE_BASE_DIR, AVATARS_DIR, logger
 from client import create_telegram_client
-from llm import get_proverb, chat_llm
-
+from common import AVATARS_DIR, KNOWLEDGE_BASE_DIR, Session, SessionID, logger
+from llm import chat_llm, get_proverb
+from llm.tools import record_user_details
+from pypdf import PdfReader
 
 ChatHistory: TypeAlias = list[dict[str, str]]
 ChatOutput: TypeAlias = tuple[str, ChatHistory, Session, gr.Timer]
@@ -42,6 +41,8 @@ last_polled_at = 0
 POLL_INTERVAL = 1
 
 
+# TODO: Time the live chat session so polling doesn't get out of hand
+# if the user does not end it
 def poll_telegram_replies():
     global sessions, last_polled_at
 
@@ -104,10 +105,23 @@ def refresh_chat(state: Session):
     return sessions[session_id].history, state
 
 
+def log_first_interaction(session: Session):
+    record_user_details.invoke(
+        {
+            'session_id': session.session_id,
+            'name': session.name,
+            'email': 'guest@mirrorverse.dev',
+            'notes': 'Introduction',
+        }
+    )
+
+
 def handle_user_name(
     message, history, state: Session, timer: gr.Timer
 ) -> Generator[ChatOutput, None, None]:
     state.name = message.strip()
+    log_first_interaction(state)
+
     logger.info(f'New user joined: {message}')
 
     history.append(message_to_ask_for_name)
@@ -212,7 +226,8 @@ with gr.Blocks(title=title, fill_height=True) as ui:
     gr.Markdown("""
     # Mirror 🪞
 
-    ## Look closely into the mirror and you might just see 👀 me!
+    ### I am an online representative for Ransford and will be answering your questions.
+    ### If you need to have a live chat 👤↔️👤 with him, closely look into the mirror and you might just see 👀 me!
     """)
 
     chatbot = gr.Chatbot(
@@ -221,7 +236,10 @@ with gr.Blocks(title=title, fill_height=True) as ui:
         height='80vh',
         # resizable=True,
         group_consecutive_messages=False,
-        avatar_images=[AVATARS_DIR / 'circle-user.svg', AVATARS_DIR / 'chatbot.svg'],
+        avatar_images=(
+            AVATARS_DIR / 'circle-user.svg',
+            AVATARS_DIR / 'chatbot.svg',
+        ),
     )
     msg = gr.Textbox(
         autofocus=True,
