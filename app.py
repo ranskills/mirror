@@ -232,7 +232,6 @@ with gr.Blocks(title=title, fill_height=True) as ui:
 
     chatbot = gr.Chatbot(
         value=[message_to_ask_for_name],
-        type='messages',
         height='80vh',
         # resizable=True,
         group_consecutive_messages=False,
