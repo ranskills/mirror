@@ -2,7 +2,11 @@
 This module provides functions to defend against prompt injection attacks.
 """
 
+from functools import lru_cache
 import re
+
+from common import logger
+
 
 action_regex = None
 system_regex = None
@@ -85,3 +89,26 @@ def basic_prompt_injection_detection(text: str) -> bool:
     has_manipulation_action = bool(action_regex.search(text))
 
     return has_system_reference and has_manipulation_action
+
+
+@lru_cache(maxsize=1)
+def _get_prompt_guard_model():
+    from transformers import pipeline
+
+    classifier = pipeline('text-classification', model='meta-llama/Llama-Prompt-Guard-2-86M')
+    return classifier
+
+
+def advanced_prompt_injection_detection(text: str) -> bool:
+    """
+    Advanced detection using a pre-trained model to detect prompt injection and jailbreak attempts.
+    """
+    classifier = _get_prompt_guard_model()
+    result = classifier(text)
+    result = result[0]
+
+    logger.debug(f'Prompt Injection Detection. Input: {text}  Result: {result}')
+
+    is_malicious = result['label'] == 'LABEL_1'
+
+    return is_malicious and result['score'] >= 0.8
