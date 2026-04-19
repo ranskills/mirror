@@ -148,4 +148,4 @@ def advanced_prompt_injection_detection(text: str) -> bool:
     logger.debug(f'{label}. {confidence}')
     is_malicious = label == 'LABEL_1'
 
-    return is_malicious and confidence >= 8.5
+    return is_malicious and confidence >= 0.85
