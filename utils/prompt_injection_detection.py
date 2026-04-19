@@ -5,6 +5,8 @@ This module provides functions to defend against prompt injection attacks.
 from functools import lru_cache
 import re
 
+import torch
+
 from common import logger
 
 
@@ -93,22 +95,57 @@ def basic_prompt_injection_detection(text: str) -> bool:
 
 @lru_cache(maxsize=1)
 def _get_prompt_guard_model():
-    from transformers import pipeline
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer, BitsAndBytesConfig
 
-    classifier = pipeline('text-classification', model='meta-llama/Llama-Prompt-Guard-2-86M')
-    return classifier
+
+    model_id = 'meta-llama/Llama-Prompt-Guard-2-86M'
+
+    use_4_bit = True
+
+    if use_4_bit:
+        quant_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_quant_type='nf4',
+            bnb_4bit_use_double_quant=True
+        )
+    else:
+        quant_config = BitsAndBytesConfig(
+            load_in_8bit=True,
+            bnb_8bit_compute_dtype=torch.bfloat16,
+        )
+
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_id,
+        quantization_config=quant_config,
+        device_map="auto" # Dynamically places model on CPU/GPU
+    )
+
+    # No significan't change in memory usaged. 4bit = 815.91 MB.  8bit = 858.67 MB. None = 1115.25 MB
+    logger.info(f'Model loaded! Memory used: {model.get_memory_footprint() / 1e6:.2f} MB')
+
+    return tokenizer, model
 
 
 def advanced_prompt_injection_detection(text: str) -> bool:
     """
     Advanced detection using a pre-trained model to detect prompt injection and jailbreak attempts.
     """
-    classifier = _get_prompt_guard_model()
-    result = classifier(text)
-    result = result[0]
+    tokenizer, model = _get_prompt_guard_model()
 
-    logger.debug(f'Prompt Injection Detection. Input: {text}  Result: {result}')
+    inputs = tokenizer(text, return_tensors='pt').to(model.device)
 
-    is_malicious = result['label'] == 'LABEL_1'
+    with torch.no_grad():
+        logits = model(**inputs).logits
 
-    return is_malicious and result['score'] >= 0.8
+    predicted_class_id = logits.argmax().item()
+    label = model.config.id2label[predicted_class_id]
+
+    probabilities = torch.softmax(logits, dim=-1)
+    confidence = probabilities[0][predicted_class_id].item()
+
+    logger.debug(f'{label}. {confidence}')
+    is_malicious = label == 'LABEL_1'
+
+    return is_malicious and confidence >= 8.5
