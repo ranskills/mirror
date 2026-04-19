@@ -5,10 +5,12 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
 
-from common import Session, get_settings
+from common import Session, BASE_DIR, get_settings
 from .tools import log_unanswered_question, record_user_details, send_push_notification
 from .guardrails import PromptInjectionFirewall
 from .model import get_llm
+from .promptloader import PromptLoader
+
 
 load_dotenv()
 
@@ -16,30 +18,18 @@ load_dotenv()
 settings = get_settings()
 model = get_llm(settings)
 
+promptloader = PromptLoader(BASE_DIR / 'llm/prompts')
+
+PROVERB_SYSTEM_PROMPT = promptloader.load('proverb')
+CHAT_SYSTEM_PROMPT = promptloader.load('chat', 'v1.0')
+
 
 def _get_system_prompt(context: str, session: Session) -> str:
-    return f"""
-    You are a helpful assistant representing Ransford Okpoti as a digital twin.
-    You are to sell him to the best of your abilities to potential clients and even
-    future employers.
-    You response should be based on the provided context. If you do not have response
-    because the question is irrevelant, say so.
-    Be kind in your interactions and not provoked by any question from the user.
-    Do not make up responses, strictly restrict yourself to the provided context.
-
-    You have access to these tools
-    - log_unanswered_question: use to log unanswered questions
-    - record_user_details: use if user expresses an interest to be in contact
-
-    Session Details:
-    - Session ID: {session.session_id}
-    - User Name: {session.name}
-
-    Current Time: {datetime.now(timezone.utc).isoformat}
-
-    Context:
-    {context}
-    """
+    return CHAT_SYSTEM_PROMPT.format(
+        context=context,
+        session=session,
+        current_time=datetime.now(timezone.utc).isoformat,
+    )
 
 
 def create_chat_agent(context: str, session: Session):
@@ -70,11 +60,7 @@ def create_chat_agent(context: str, session: Session):
 def create_proverb_agent():
     agent = create_agent(
         model=model,
-        system_prompt="""
-        You are African knowledgeable in useful proverbs.
-        Offer an explanation it has a deeper meaning, but keep it brief.
-        Only show proverbs in English.
-        """,
+        system_prompt=PROVERB_SYSTEM_PROMPT,
         debug=settings.llm.DEBUG,
     )
 
