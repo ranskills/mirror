@@ -23,5 +23,5 @@ def get_llm(settings: AppSettings) -> Runnable[LanguageModelInput, BaseMessage]:
     params = sts.get_config(sts.PROVIDER)
     logger.info(f'Initializing LLM model with provider: {sts.PROVIDER} Config: {sts}')
     _llm_model = ChatOpenAI(**params)
-
+    _llm_model.with_fallbacks()
     return _llm_model
